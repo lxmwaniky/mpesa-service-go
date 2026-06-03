@@ -127,10 +127,10 @@ func (c *Client) SendSTKPush(ctx context.Context, phoneNumber string, amount flo
 		BusinessShortCode: c.cfg.MpesaShortcode,
 		Password:          password,
 		Timestamp:         timestamp,
-		TransactionType:   "CustomerPayBillOnline",
+		TransactionType:   c.cfg.MpesaTransactionType,
 		Amount:            fmt.Sprintf("%.0f", amount),
 		PartyA:            formattedPhone,
-		PartyB:            c.cfg.MpesaShortcode,
+		PartyB:            c.cfg.MpesaPartyB,
 		PhoneNumber:       formattedPhone,
 		CallBackURL:       c.cfg.MpesaCallbackURL,
 		AccountReference:  reference,
@@ -199,7 +199,7 @@ type C2BRegisterResponse struct {
 	ResponseDescription      string `json:"ResponseDescription"`
 }
 
-func (c *Client) RegisterC2BURLs(ctx context.Context, validationURL, confirmationURL string) (*C2BRegisterResponse, error) {
+func (c *Client) RegisterC2BURLs(ctx context.Context, validationURL, confirmationURL string, apiVersion string) (*C2BRegisterResponse, error) {
 	token, err := c.GetToken()
 	if err != nil {
 		return nil, err
@@ -217,7 +217,12 @@ func (c *Client) RegisterC2BURLs(ctx context.Context, validationURL, confirmatio
 		return nil, err
 	}
 
-	reqURL := fmt.Sprintf("%s/mpesa/c2b/v1/registerurl", c.getBaseURL())
+	version := "v1"
+	if apiVersion == "v2" {
+		version = "v2"
+	}
+
+	reqURL := fmt.Sprintf("%s/mpesa/c2b/%s/registerurl", c.getBaseURL(), version)
 	req, err := http.NewRequestWithContext(ctx, "POST", reqURL, bytes.NewBuffer(reqBody))
 	if err != nil {
 		return nil, err
@@ -242,4 +247,71 @@ func (c *Client) RegisterC2BURLs(ctx context.Context, validationURL, confirmatio
 	}
 
 	return &regResp, nil
+}
+
+type STKQueryRequest struct {
+	BusinessShortCode string `json:"BusinessShortCode"`
+	Password          string `json:"Password"`
+	Timestamp         string `json:"Timestamp"`
+	CheckoutRequestID string `json:"CheckoutRequestID"`
+}
+
+type STKQueryResponse struct {
+	ResponseCode        string `json:"ResponseCode"`
+	ResponseDescription string `json:"ResponseDescription"`
+	MerchantRequestID   string `json:"MerchantRequestID"`
+	CheckoutRequestID   string `json:"CheckoutRequestID"`
+	ResultCode          int    `json:"ResultCode"`
+	ResultDesc          string `json:"ResultDesc"`
+}
+
+func (c *Client) QuerySTKPush(ctx context.Context, checkoutRequestID string) (*STKQueryResponse, error) {
+	token, err := c.GetToken()
+	if err != nil {
+		return nil, err
+	}
+
+	timestamp := time.Now().Format("20060102150405")
+	passMaterial := c.cfg.MpesaShortcode + c.cfg.MpesaPasskey + timestamp
+	password := base64.StdEncoding.EncodeToString([]byte(passMaterial))
+
+	payload := STKQueryRequest{
+		BusinessShortCode: c.cfg.MpesaShortcode,
+		Password:          password,
+		Timestamp:         timestamp,
+		CheckoutRequestID: checkoutRequestID,
+	}
+
+	reqBody, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	reqURL := fmt.Sprintf("%s/mpesa/stkpushquery/v1/query", c.getBaseURL())
+	req, err := http.NewRequestWithContext(ctx, "POST", reqURL, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Authorization", "Bearer "+token)
+	req.Header.Add("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		var errorBody bytes.Buffer
+		_, _ = errorBody.ReadFrom(resp.Body)
+		return nil, fmt.Errorf("stk query failed with status: %d, response: %s", resp.StatusCode, errorBody.String())
+	}
+
+	var queryResp STKQueryResponse
+	if err := json.NewDecoder(resp.Body).Decode(&queryResp); err != nil {
+		return nil, err
+	}
+
+	return &queryResp, nil
 }

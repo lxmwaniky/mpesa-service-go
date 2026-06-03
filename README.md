@@ -161,7 +161,28 @@ Checks the status of an ongoing transaction. Translates cryptic M-Pesa error cod
     }
     ```
 
-### 3. Health Check (Public)
+### 3. Register C2B URLs (Private)
+Registers the validation and confirmation webhooks dynamically with Safaricom G2 platform.
+
+*   **Endpoint**: `POST /api/v1/mpesa/c2b/register`
+*   **Headers**:
+    *   `X-API-Key`: `your_pre_shared_secret_api_key`
+    *   `Content-Type`: `application/json`
+*   **Request Body**:
+    ```json
+    {
+      "validation_url": "https://your-domain.com/api/v1/mpesa/callbacks/c2b/validation",
+      "confirmation_url": "https://your-domain.com/api/v1/mpesa/callbacks/c2b/confirmation"
+    }
+    ```
+*   **Response (`200 OK`)**:
+    ```json
+    {
+      "message": "C2B URLs registered successfully"
+    }
+    ```
+
+### 4. Health Check (Public)
 Public endpoint for SRE observability, readiness, and liveness probes. Checks database ping connectivity under the hood.
 
 *   **Endpoint**: `GET /healthz`
@@ -214,6 +235,4 @@ Public endpoint for SRE observability, readiness, and liveness probes. Checks da
     This prevents duplicate callbacks or race conditions from modifying already finalized records.
 *   **Idempotent Callback Handlers**: If a duplicate callback retry hits the server, the system detects that the transaction state is no longer `PENDING` and returns an immediate `200 OK` response to silence Safaricom’s retry queue, protecting application throughput.
 *   **Active Memory Protection**: Built-in rate limiter background cleanup routines continuously sweep and delete inactive keys from memory, securing the service from OOM and brute-force vulnerabilities.
-```
-_Designed with ♥ for Go developers in the Kenyan Fintech space._
-```
+*   **Structured Logging**: All logs are emitted in structured JSON format with consistent fields (`timestamp`, `level`, `message`, `transaction_id`, etc.) to facilitate seamless integration with log aggregation platforms and enable powerful querying and alerting capabilities.

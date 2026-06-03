@@ -2,6 +2,8 @@ package usecase
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -66,8 +68,12 @@ func (m *mockTransactionRepository) Ping(ctx context.Context) error {
 }
 
 type mockDarajaGateway struct {
-	resp *daraja.STKPushResponse
-	err  error
+	resp            *daraja.STKPushResponse
+	queryResp       *daraja.STKQueryResponse
+	err             error
+	queryErr        error
+	registerC2BResp *daraja.C2BRegisterResponse
+	registerC2BErr  error
 }
 
 func (m *mockDarajaGateway) SendSTKPush(ctx context.Context, phone string, amount float64, ref, desc string) (*daraja.STKPushResponse, error) {
@@ -75,6 +81,20 @@ func (m *mockDarajaGateway) SendSTKPush(ctx context.Context, phone string, amoun
 		return nil, m.err
 	}
 	return m.resp, nil
+}
+
+func (m *mockDarajaGateway) QuerySTKPush(ctx context.Context, checkoutRequestID string) (*daraja.STKQueryResponse, error) {
+	if m.queryErr != nil {
+		return nil, m.queryErr
+	}
+	return m.queryResp, nil
+}
+
+func (m *mockDarajaGateway) RegisterC2BURLs(ctx context.Context, validationURL, confirmationURL string, apiVersion string) (*daraja.C2BRegisterResponse, error) {
+	if m.registerC2BErr != nil {
+		return nil, m.registerC2BErr
+	}
+	return m.registerC2BResp, nil
 }
 
 func TestInitiateSTKPush_Success(t *testing.T) {
@@ -245,3 +265,285 @@ func TestGetTransactionStatus(t *testing.T) {
 		t.Errorf("expected user message, got: %s", status.UserMessage)
 	}
 }
+
+func TestGetTransactionStatus_PendingQuerySuccess(t *testing.T) {
+	repo := newMockRepo()
+	checkoutID := "checkout-123"
+	repo.transactions["ref-1"] = &domain.Transaction{
+		ID:                42,
+		ExternalReference: "ref-1",
+		CheckoutRequestID: &checkoutID,
+		Status:            domain.StatusPending,
+		TransactionType:   "STK_PUSH",
+		Amount:            250.0,
+		UpdatedAt:         time.Now(),
+	}
+
+	gateway := &mockDarajaGateway{
+		queryResp: &daraja.STKQueryResponse{
+			ResponseCode: "0",
+			ResultCode:   0,
+			ResultDesc:   "Success",
+		},
+	}
+
+	uc := NewMpesaUsecase(repo, gateway)
+
+	status, err := uc.GetTransactionStatus(context.Background(), "ref-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if status.Status != domain.StatusSuccess {
+		t.Errorf("expected status SUCCESS, got %s", status.Status)
+	}
+
+	dbTx := repo.transactions["ref-1"]
+	if dbTx.Status != domain.StatusSuccess {
+		t.Errorf("expected db transaction status SUCCESS, got %s", dbTx.Status)
+	}
+}
+
+func TestGetTransactionStatus_PendingQueryFailed(t *testing.T) {
+	repo := newMockRepo()
+	checkoutID := "checkout-123"
+	repo.transactions["ref-1"] = &domain.Transaction{
+		ID:                42,
+		ExternalReference: "ref-1",
+		CheckoutRequestID: &checkoutID,
+		Status:            domain.StatusPending,
+		TransactionType:   "STK_PUSH",
+		Amount:            250.0,
+		UpdatedAt:         time.Now(),
+	}
+
+	gateway := &mockDarajaGateway{
+		queryResp: &daraja.STKQueryResponse{
+			ResponseCode: "0",
+			ResultCode:   1032,
+			ResultDesc:   "Request cancelled by user",
+		},
+	}
+
+	uc := NewMpesaUsecase(repo, gateway)
+
+	status, err := uc.GetTransactionStatus(context.Background(), "ref-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if status.Status != domain.StatusFailed {
+		t.Errorf("expected status FAILED, got %s", status.Status)
+	}
+
+	dbTx := repo.transactions["ref-1"]
+	if dbTx.Status != domain.StatusFailed {
+		t.Errorf("expected db transaction status FAILED, got %s", dbTx.Status)
+	}
+}
+
+func TestGetTransactionStatus_PendingQueryAPIError(t *testing.T) {
+	repo := newMockRepo()
+	checkoutID := "checkout-123"
+	repo.transactions["ref-1"] = &domain.Transaction{
+		ID:                42,
+		ExternalReference: "ref-1",
+		CheckoutRequestID: &checkoutID,
+		Status:            domain.StatusPending,
+		TransactionType:   "STK_PUSH",
+		Amount:            250.0,
+		UpdatedAt:         time.Now(),
+	}
+
+	gateway := &mockDarajaGateway{
+		queryErr: fmt.Errorf("network timeout"),
+	}
+
+	uc := NewMpesaUsecase(repo, gateway)
+
+	status, err := uc.GetTransactionStatus(context.Background(), "ref-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if status.Status != domain.StatusPending {
+		t.Errorf("expected status PENDING, got %s", status.Status)
+	}
+
+	dbTx := repo.transactions["ref-1"]
+	if dbTx.Status != domain.StatusPending {
+		t.Errorf("expected db transaction status to remain PENDING, got %s", dbTx.Status)
+	}
+}
+
+func TestGetTransactionStatus_RepositoryError(t *testing.T) {
+	repo := newMockRepo()
+	repo.getErr = fmt.Errorf("database error")
+
+	uc := NewMpesaUsecase(repo, nil)
+
+	_, err := uc.GetTransactionStatus(context.Background(), "ref-1")
+	if err == nil {
+		t.Error("expected error from repository, got nil")
+	}
+	if err.Error() != "database error" {
+		t.Errorf("expected 'database error', got '%v'", err)
+	}
+}
+
+func TestGetTransactionStatus_NotFound(t *testing.T) {
+	repo := newMockRepo()
+
+	uc := NewMpesaUsecase(repo, nil)
+
+	status, err := uc.GetTransactionStatus(context.Background(), "ref-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if status != nil {
+		t.Errorf("expected nil status for not found transaction, got %v", status)
+	}
+}
+
+func TestInitiateSTKPush_DatabaseError(t *testing.T) {
+	repo := newMockRepo()
+	repo.createErr = fmt.Errorf("database error")
+
+	gateway := &mockDarajaGateway{
+		resp: &daraja.STKPushResponse{
+			MerchantRequestID: "merch-123",
+			CheckoutRequestID: "checkout-123",
+		},
+	}
+
+	uc := NewMpesaUsecase(repo, gateway)
+	_, err := uc.InitiateSTKPush(context.Background(), "ref-1", "0700000000", 100.0, "test")
+
+	if err == nil {
+		t.Error("expected error from repository, got nil")
+	}
+	if err.Error() != "database error" {
+		t.Errorf("expected 'database error', got '%v'", err)
+	}
+}
+
+func TestProcessSTKCallback_DatabaseError(t *testing.T) {
+	repo := newMockRepo()
+	checkoutID := "checkout-123"
+	repo.transactions["ref-1"] = &domain.Transaction{
+		ExternalReference: "ref-1",
+		CheckoutRequestID: &checkoutID,
+		Status:            domain.StatusPending,
+	}
+	repo.updateErr = fmt.Errorf("database error")
+
+	uc := NewMpesaUsecase(repo, nil)
+
+	payload := &domain.STKCallbackPayload{
+		Body: domain.STKCallbackBody{
+			StkCallback: domain.STKCallback{
+				CheckoutRequestID: "checkout-123",
+				ResultCode:        0,
+				ResultDesc:        "Success",
+			},
+		},
+	}
+
+	err := uc.ProcessSTKCallback(context.Background(), payload)
+	if err == nil {
+		t.Error("expected error from repository, got nil")
+	}
+	if err.Error() != "database error" {
+		t.Errorf("expected 'database error', got '%v'", err)
+	}
+}
+
+func TestValidateC2B_MissingBillRefNumber(t *testing.T) {
+	repo := newMockRepo()
+	uc := NewMpesaUsecase(repo, nil)
+
+	payload := &domain.C2BPayload{
+		TransID:     "TRX123",
+		TransAmount: "100.00",
+		MSISDN:      "254700000000",
+	}
+
+	resp, err := uc.ValidateC2B(context.Background(), payload)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.ResultCode != 1 {
+		t.Errorf("expected ResultCode 1 for missing BillRefNumber, got %d", resp.ResultCode)
+	}
+	if !strings.Contains(resp.ResultDesc, "Account Reference is required") {
+		t.Errorf("expected error message about Account Reference, got '%s'", resp.ResultDesc)
+	}
+}
+
+func TestProcessSTKCallback_DynamicResultCode(t *testing.T) {
+	repo := newMockRepo()
+	checkoutID := "checkout-123"
+	repo.transactions["ref-1"] = &domain.Transaction{
+		ExternalReference: "ref-1",
+		CheckoutRequestID: &checkoutID,
+		Status:            domain.StatusPending,
+	}
+
+	uc := NewMpesaUsecase(repo, nil)
+
+	payload := &domain.STKCallbackPayload{
+		Body: domain.STKCallbackBody{
+			StkCallback: domain.STKCallback{
+				CheckoutRequestID: "checkout-123",
+				ResultCode:        "GV50113",
+				ResultDesc:        "The receiver party information is invalid",
+			},
+		},
+	}
+
+	err := uc.ProcessSTKCallback(context.Background(), payload)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	tx := repo.transactions["ref-1"]
+	if tx.Status != domain.StatusFailed {
+		t.Errorf("expected status FAILED, got %s", tx.Status)
+	}
+
+	if tx.ResultCode != -1 {
+		t.Errorf("expected ResultCode to be -1 for non-numeric string error, got %d", tx.ResultCode)
+	}
+}
+
+func TestRegisterC2BURLs_Success(t *testing.T) {
+	repo := newMockRepo()
+	gateway := &mockDarajaGateway{
+		registerC2BResp: &daraja.C2BRegisterResponse{
+			ResponseDescription: "Success",
+		},
+	}
+	uc := NewMpesaUsecase(repo, gateway)
+
+	err := uc.RegisterC2BURLs(context.Background(), "https://example.com/val", "https://example.com/conf", "v2")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+}
+
+func TestRegisterC2BURLs_Error(t *testing.T) {
+	repo := newMockRepo()
+	gateway := &mockDarajaGateway{
+		registerC2BErr: fmt.Errorf("daraja registration failed"),
+	}
+	uc := NewMpesaUsecase(repo, gateway)
+
+	err := uc.RegisterC2BURLs(context.Background(), "https://example.com/val", "https://example.com/conf", "v1")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "daraja registration failed") {
+		t.Errorf("expected error message to contain 'daraja registration failed', got: %v", err)
+	}
+}
+

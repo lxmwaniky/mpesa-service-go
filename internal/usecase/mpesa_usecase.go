@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"time"
 
@@ -13,6 +14,8 @@ import (
 
 type DarajaGateway interface {
 	SendSTKPush(ctx context.Context, phone string, amount float64, ref, desc string) (*daraja.STKPushResponse, error)
+	QuerySTKPush(ctx context.Context, checkoutRequestID string) (*daraja.STKQueryResponse, error)
+	RegisterC2BURLs(ctx context.Context, validationURL, confirmationURL string, apiVersion string) (*daraja.C2BRegisterResponse, error)
 }
 
 type mpesaUsecase struct {
@@ -52,7 +55,10 @@ func (u *mpesaUsecase) InitiateSTKPush(ctx context.Context, extRef, phone string
 		tx.Status = domain.StatusFailed
 		tx.ResultCode = -1
 		tx.ResultDesc = err.Error()
-		_ = u.repo.Create(ctx, tx)
+		if createErr := u.repo.Create(ctx, tx); createErr != nil {
+			slog.Error("failed to create failed transaction record", "error", createErr, "external_reference", extRef)
+			return nil, fmt.Errorf("stk push failed and failed to create transaction record: %v (%w)", err, createErr)
+		}
 		return nil, err
 	}
 
@@ -80,7 +86,7 @@ func (u *mpesaUsecase) ProcessSTKCallback(ctx context.Context, payload *domain.S
 		return nil
 	}
 
-	tx.ResultCode = payload.Body.StkCallback.ResultCode
+	tx.ResultCode = parseResultCode(payload.Body.StkCallback.ResultCode)
 	tx.ResultDesc = payload.Body.StkCallback.ResultDesc
 	tx.UpdatedAt = time.Now()
 
@@ -99,9 +105,38 @@ func (u *mpesaUsecase) ProcessSTKCallback(ctx context.Context, payload *domain.S
 		if errors.Is(err, domain.ErrAlreadyProcessed) {
 			return nil
 		}
+		slog.Error("failed to update transaction", "error", err, "checkout_request_id", checkoutID)
 		return err
 	}
 	return nil
+}
+
+func parseResultCode(val interface{}) int {
+	if val == nil {
+		return 0
+	}
+	switch v := val.(type) {
+	case int:
+		return v
+	case int32:
+		return int(v)
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	case string:
+		if v == "0" {
+			return 0
+		}
+		var parsed int
+		n, _ := fmt.Sscanf(v, "%d", &parsed)
+		if n == 1 {
+			return parsed
+		}
+		return -1
+	default:
+		return -1
+	}
 }
 
 func (u *mpesaUsecase) ValidateC2B(ctx context.Context, payload *domain.C2BPayload) (*domain.C2BValidationResponse, error) {
@@ -145,6 +180,23 @@ func (u *mpesaUsecase) GetTransactionStatus(ctx context.Context, extRef string) 
 	}
 	if tx == nil {
 		return nil, nil
+	}
+
+	if tx.Status == domain.StatusPending && tx.TransactionType == "STK_PUSH" && tx.CheckoutRequestID != nil {
+		queryResp, err := u.gateway.QuerySTKPush(ctx, *tx.CheckoutRequestID)
+		if err == nil && queryResp.ResponseCode == "0" {
+			if queryResp.ResultCode == 0 {
+				tx.Status = domain.StatusSuccess
+			} else {
+				tx.Status = domain.StatusFailed
+			}
+			tx.ResultCode = queryResp.ResultCode
+			tx.ResultDesc = queryResp.ResultDesc
+			tx.UpdatedAt = time.Now()
+			_ = u.repo.Update(ctx, tx)
+		} else if err != nil {
+			slog.Warn("failed to query stk push status from daraja", "error", err, "checkout_request_id", *tx.CheckoutRequestID)
+		}
 	}
 
 	resp := &domain.TransactionStatusResponse{
@@ -208,3 +260,9 @@ func extractSTKMetadata(metadata *domain.STKCallbackMetadata) (string, float64) 
 func (u *mpesaUsecase) Ping(ctx context.Context) error {
 	return u.repo.Ping(ctx)
 }
+
+func (u *mpesaUsecase) RegisterC2BURLs(ctx context.Context, validationURL, confirmationURL string, apiVersion string) error {
+	_, err := u.gateway.RegisterC2BURLs(ctx, validationURL, confirmationURL, apiVersion)
+	return err
+}
+

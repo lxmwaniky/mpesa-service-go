@@ -8,15 +8,17 @@ import (
 )
 
 type Config struct {
-	Port                string
-	DatabaseURL         string
-	MpesaEnv            string
-	MpesaConsumerKey    string
-	MpesaConsumerSecret string
-	MpesaPasskey        string
-	MpesaShortcode      string
-	MpesaCallbackURL    string
-	AppAPIKey           string
+	Port                 string
+	DatabaseURL          string
+	MpesaEnv             string
+	MpesaConsumerKey     string
+	MpesaConsumerSecret  string
+	MpesaPasskey         string
+	MpesaShortcode       string
+	MpesaPartyB          string
+	MpesaTransactionType string
+	MpesaCallbackURL     string
+	AppAPIKey            string
 }
 
 func LoadEnv(filenames ...string) {
@@ -55,21 +57,49 @@ func LoadConfig() (*Config, error) {
 
 	dbURL := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", dbUser, dbPassword, dbHost, dbPort, dbName)
 
-	cfg := &Config{
-		Port:                getEnv("PORT", "8080"),
-		DatabaseURL:         getEnv("DATABASE_URL", dbURL),
-		MpesaEnv:            getEnv("MPESA_ENV", "sandbox"),
-		MpesaConsumerKey:    getEnv("MPESA_CONSUMER_KEY", ""),
-		MpesaConsumerSecret: getEnv("MPESA_CONSUMER_SECRET", ""),
-		MpesaPasskey:        getEnv("MPESA_PASSKEY", ""),
-		MpesaShortcode:      getEnv("MPESA_SHORTCODE", ""),
-		MpesaCallbackURL:    getEnv("MPESA_CALLBACK_URL", ""),
-		AppAPIKey:           getEnv("API_KEY", ""),
+	mpesaPartyB := getEnv("MPESA_PARTY_B", "")
+	if mpesaPartyB == "" {
+		mpesaPartyB = getEnv("MPESA_SHORTCODE", "")
 	}
 
-	if cfg.MpesaConsumerKey == "" || cfg.MpesaConsumerSecret == "" {
-		if cfg.MpesaEnv == "production" {
-			return nil, fmt.Errorf("MPESA_CONSUMER_KEY and MPESA_CONSUMER_SECRET must be set in production")
+	cfg := &Config{
+		Port:                 getEnv("PORT", "8080"),
+		DatabaseURL:          getEnv("DATABASE_URL", dbURL),
+		MpesaEnv:             getEnv("MPESA_ENV", "sandbox"),
+		MpesaConsumerKey:     getEnv("MPESA_CONSUMER_KEY", ""),
+		MpesaConsumerSecret:  getEnv("MPESA_CONSUMER_SECRET", ""),
+		MpesaPasskey:         getEnv("MPESA_PASSKEY", ""),
+		MpesaShortcode:       getEnv("MPESA_SHORTCODE", ""),
+		MpesaPartyB:          mpesaPartyB,
+		MpesaTransactionType: getEnv("MPESA_TRANSACTION_TYPE", "CustomerPayBillOnline"),
+		MpesaCallbackURL:     getEnv("MPESA_CALLBACK_URL", ""),
+		AppAPIKey:            getEnv("API_KEY", ""),
+	}
+
+	if cfg.MpesaEnv == "production" {
+		if cfg.MpesaConsumerKey == "" {
+			return nil, fmt.Errorf("MPESA_CONSUMER_KEY must be set in production")
+		}
+		if cfg.MpesaConsumerSecret == "" {
+			return nil, fmt.Errorf("MPESA_CONSUMER_SECRET must be set in production")
+		}
+		if cfg.MpesaPasskey == "" {
+			return nil, fmt.Errorf("MPESA_PASSKEY must be set in production")
+		}
+		if cfg.MpesaShortcode == "" {
+			return nil, fmt.Errorf("MPESA_SHORTCODE must be set in production")
+		}
+		if cfg.MpesaCallbackURL == "" {
+			return nil, fmt.Errorf("MPESA_CALLBACK_URL must be set in production")
+		}
+		if cfg.AppAPIKey == "" {
+			return nil, fmt.Errorf("API_KEY must be set in production")
+		}
+	}
+
+	if cfg.MpesaCallbackURL != "" {
+		if !strings.HasPrefix(cfg.MpesaCallbackURL, "https://") {
+			return nil, fmt.Errorf("MPESA_CALLBACK_URL must use HTTPS protocol")
 		}
 	}
 

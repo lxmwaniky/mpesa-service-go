@@ -13,12 +13,13 @@ import (
 )
 
 type mockMpesaUsecase struct {
-	initiateFunc func(ctx context.Context, extRef, phone string, amount float64, desc string) (*domain.Transaction, error)
-	processFunc  func(ctx context.Context, payload *domain.STKCallbackPayload) error
-	validateFunc func(ctx context.Context, payload *domain.C2BPayload) (*domain.C2BValidationResponse, error)
-	confirmFunc  func(ctx context.Context, payload *domain.C2BPayload) error
-	statusFunc   func(ctx context.Context, extRef string) (*domain.TransactionStatusResponse, error)
-	pingFunc     func(ctx context.Context) error
+	initiateFunc        func(ctx context.Context, extRef, phone string, amount float64, desc string) (*domain.Transaction, error)
+	processFunc         func(ctx context.Context, payload *domain.STKCallbackPayload) error
+	validateFunc        func(ctx context.Context, payload *domain.C2BPayload) (*domain.C2BValidationResponse, error)
+	confirmFunc         func(ctx context.Context, payload *domain.C2BPayload) error
+	statusFunc          func(ctx context.Context, extRef string) (*domain.TransactionStatusResponse, error)
+	registerC2BURLsFunc func(ctx context.Context, validationURL, confirmationURL string, apiVersion string) error
+	pingFunc            func(ctx context.Context) error
 }
 
 func (m *mockMpesaUsecase) InitiateSTKPush(ctx context.Context, extRef, phone string, amount float64, desc string) (*domain.Transaction, error) {
@@ -54,6 +55,13 @@ func (m *mockMpesaUsecase) GetTransactionStatus(ctx context.Context, extRef stri
 		return m.statusFunc(ctx, extRef)
 	}
 	return nil, nil
+}
+
+func (m *mockMpesaUsecase) RegisterC2BURLs(ctx context.Context, validationURL, confirmationURL string, apiVersion string) error {
+	if m.registerC2BURLsFunc != nil {
+		return m.registerC2BURLsFunc(ctx, validationURL, confirmationURL, apiVersion)
+	}
+	return nil
 }
 
 func (m *mockMpesaUsecase) Ping(ctx context.Context) error {
@@ -210,3 +218,95 @@ func TestHandler_Healthz_Failure(t *testing.T) {
 		t.Errorf("expected status %d, got %d", http.StatusServiceUnavailable, rr.Code)
 	}
 }
+
+func TestHandler_RegisterC2BURLs_Success(t *testing.T) {
+	mockUC := &mockMpesaUsecase{
+		registerC2BURLsFunc: func(ctx context.Context, validationURL, confirmationURL string, apiVersion string) error {
+			if apiVersion != "v2" {
+				return errors.New("expected apiVersion 'v2'")
+			}
+			return nil
+		},
+	}
+
+	handler := NewHandler(mockUC)
+
+	payload := C2BRegisterRequest{
+		ValidationURL:   "https://example.com/val",
+		ConfirmationURL: "https://example.com/conf",
+		APIVersion:      "v2",
+	}
+	body, _ := json.Marshal(payload)
+
+	req := httptest.NewRequest("POST", "/api/v1/mpesa/c2b/register", bytes.NewBuffer(body))
+	rr := httptest.NewRecorder()
+
+	handler.RegisterC2BURLs(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, rr.Code)
+	}
+
+	var resp map[string]string
+	_ = json.NewDecoder(rr.Body).Decode(&resp)
+	if resp["message"] != "C2B URLs registered successfully" {
+		t.Errorf("expected message 'C2B URLs registered successfully', got '%s'", resp["message"])
+	}
+}
+
+func TestHandler_RegisterC2BURLs_InvalidPayload(t *testing.T) {
+	handler := NewHandler(&mockMpesaUsecase{})
+
+	req := httptest.NewRequest("POST", "/api/v1/mpesa/c2b/register", bytes.NewBufferString("{invalid json"))
+	rr := httptest.NewRecorder()
+
+	handler.RegisterC2BURLs(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, rr.Code)
+	}
+}
+
+func TestHandler_RegisterC2BURLs_MissingFields(t *testing.T) {
+	handler := NewHandler(&mockMpesaUsecase{})
+
+	payload := C2BRegisterRequest{
+		ValidationURL: "",
+	}
+	body, _ := json.Marshal(payload)
+
+	req := httptest.NewRequest("POST", "/api/v1/mpesa/c2b/register", bytes.NewBuffer(body))
+	rr := httptest.NewRecorder()
+
+	handler.RegisterC2BURLs(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, rr.Code)
+	}
+}
+
+func TestHandler_RegisterC2BURLs_Failure(t *testing.T) {
+	mockUC := &mockMpesaUsecase{
+		registerC2BURLsFunc: func(ctx context.Context, validationURL, confirmationURL string, apiVersion string) error {
+			return errors.New("registration error")
+		},
+	}
+
+	handler := NewHandler(mockUC)
+
+	payload := C2BRegisterRequest{
+		ValidationURL:   "https://example.com/val",
+		ConfirmationURL: "https://example.com/conf",
+	}
+	body, _ := json.Marshal(payload)
+
+	req := httptest.NewRequest("POST", "/api/v1/mpesa/c2b/register", bytes.NewBuffer(body))
+	rr := httptest.NewRecorder()
+
+	handler.RegisterC2BURLs(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, rr.Code)
+	}
+}
+

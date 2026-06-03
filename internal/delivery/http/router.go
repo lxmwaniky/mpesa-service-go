@@ -14,9 +14,11 @@ func NewRouter(usecase domain.MpesaUsecase, cfg *config.Config) http.Handler {
 	authMiddleware := APIKeyAuth(cfg)
 	stkPushHandler := http.HandlerFunc(handler.InitiateSTKPush)
 	getStatusHandler := http.HandlerFunc(handler.GetStatus)
+	registerC2BHandler := http.HandlerFunc(handler.RegisterC2BURLs)
 
 	mux.Handle("POST /api/v1/mpesa/stk-push", authMiddleware(stkPushHandler))
 	mux.Handle("GET /api/v1/mpesa/status/{extRef}", authMiddleware(getStatusHandler))
+	mux.Handle("POST /api/v1/mpesa/c2b/register", authMiddleware(registerC2BHandler))
 	mux.HandleFunc("GET /healthz", handler.Healthz)
 
 	mux.HandleFunc("POST /api/v1/mpesa/callbacks/stk", handler.HandleSTKCallback)

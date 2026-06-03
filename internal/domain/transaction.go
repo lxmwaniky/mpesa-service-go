@@ -50,7 +50,7 @@ type STKCallbackMetadata struct {
 type STKCallback struct {
 	MerchantRequestID string               `json:"MerchantRequestID"`
 	CheckoutRequestID string               `json:"CheckoutRequestID"`
-	ResultCode        int                  `json:"ResultCode"`
+	ResultCode        interface{}          `json:"ResultCode"`
 	ResultDesc        string               `json:"ResultDesc"`
 	CallbackMetadata  *STKCallbackMetadata `json:"CallbackMetadata,omitempty"`
 }
@@ -90,5 +90,6 @@ type MpesaUsecase interface {
 	ValidateC2B(ctx context.Context, payload *C2BPayload) (*C2BValidationResponse, error)
 	ConfirmC2B(ctx context.Context, payload *C2BPayload) error
 	GetTransactionStatus(ctx context.Context, extRef string) (*TransactionStatusResponse, error)
+	RegisterC2BURLs(ctx context.Context, validationURL, confirmationURL string, apiVersion string) error
 	Ping(ctx context.Context) error
 }
