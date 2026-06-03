@@ -11,26 +11,57 @@ import (
 	"golang.org/x/time/rate"
 )
 
+type limiterEntry struct {
+	limiter    *rate.Limiter
+	lastActive time.Time
+}
+
 type ipLimiter struct {
 	mu  sync.Mutex
-	ips map[string]*rate.Limiter
+	ips map[string]*limiterEntry
 }
 
 var limiterStore = &ipLimiter{
-	ips: make(map[string]*rate.Limiter),
+	ips: make(map[string]*limiterEntry),
+}
+
+func init() {
+	go func() {
+		for {
+			time.Sleep(10 * time.Minute)
+			limiterStore.cleanup()
+		}
+	}()
 }
 
 func (l *ipLimiter) getLimiter(ip string) *rate.Limiter {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	limiter, exists := l.ips[ip]
+	entry, exists := l.ips[ip]
 	if !exists {
-		limiter = rate.NewLimiter(rate.Every(10*time.Second), 3)
-		l.ips[ip] = limiter
+		entry = &limiterEntry{
+			limiter:    rate.NewLimiter(rate.Every(10*time.Second), 3),
+			lastActive: time.Now(),
+		}
+		l.ips[ip] = entry
+	} else {
+		entry.lastActive = time.Now()
 	}
 
-	return limiter
+	return entry.limiter
+}
+
+func (l *ipLimiter) cleanup() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	now := time.Now()
+	for ip, entry := range l.ips {
+		if now.Sub(entry.lastActive) > 10*time.Minute {
+			delete(l.ips, ip)
+		}
+	}
 }
 
 func RateLimit(next http.Handler) http.Handler {
@@ -123,7 +154,7 @@ func EnableCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-App-API-Key")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-API-Key")
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
 			return

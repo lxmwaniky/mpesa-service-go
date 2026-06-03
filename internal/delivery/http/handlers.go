@@ -128,3 +128,11 @@ func (h *Handler) GetStatus(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, status)
 }
+
+func (h *Handler) Healthz(w http.ResponseWriter, r *http.Request) {
+	if err := h.usecase.Ping(r.Context()); err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "DOWN", "error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "UP"})
+}

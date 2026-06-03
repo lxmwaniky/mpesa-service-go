@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -93,7 +94,14 @@ func (u *mpesaUsecase) ProcessSTKCallback(ctx context.Context, payload *domain.S
 		tx.Status = domain.StatusFailed
 	}
 
-	return u.repo.Update(ctx, tx)
+	err = u.repo.Update(ctx, tx)
+	if err != nil {
+		if errors.Is(err, domain.ErrAlreadyProcessed) {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 func (u *mpesaUsecase) ValidateC2B(ctx context.Context, payload *domain.C2BPayload) (*domain.C2BValidationResponse, error) {
@@ -195,4 +203,8 @@ func extractSTKMetadata(metadata *domain.STKCallbackMetadata) (string, float64) 
 		}
 	}
 	return receipt, amount
+}
+
+func (u *mpesaUsecase) Ping(ctx context.Context) error {
+	return u.repo.Ping(ctx)
 }
