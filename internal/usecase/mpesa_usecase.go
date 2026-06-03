@@ -85,7 +85,7 @@ func (u *mpesaUsecase) ProcessSTKCallback(ctx context.Context, payload *domain.S
 		return nil
 	}
 
-	tx.ResultCode = payload.Body.StkCallback.ResultCode
+	tx.ResultCode = parseResultCode(payload.Body.StkCallback.ResultCode)
 	tx.ResultDesc = payload.Body.StkCallback.ResultDesc
 	tx.UpdatedAt = time.Now()
 
@@ -108,6 +108,34 @@ func (u *mpesaUsecase) ProcessSTKCallback(ctx context.Context, payload *domain.S
 		return err
 	}
 	return nil
+}
+
+func parseResultCode(val interface{}) int {
+	if val == nil {
+		return 0
+	}
+	switch v := val.(type) {
+	case int:
+		return v
+	case int32:
+		return int(v)
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	case string:
+		if v == "0" {
+			return 0
+		}
+		var parsed int
+		n, _ := fmt.Sscanf(v, "%d", &parsed)
+		if n == 1 {
+			return parsed
+		}
+		return -1
+	default:
+		return -1
+	}
 }
 
 func (u *mpesaUsecase) ValidateC2B(ctx context.Context, payload *domain.C2BPayload) (*domain.C2BValidationResponse, error) {

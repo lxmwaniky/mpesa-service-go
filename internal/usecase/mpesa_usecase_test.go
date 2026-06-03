@@ -470,3 +470,39 @@ func TestValidateC2B_MissingBillRefNumber(t *testing.T) {
 		t.Errorf("expected error message about Account Reference, got '%s'", resp.ResultDesc)
 	}
 }
+
+func TestProcessSTKCallback_DynamicResultCode(t *testing.T) {
+	repo := newMockRepo()
+	checkoutID := "checkout-123"
+	repo.transactions["ref-1"] = &domain.Transaction{
+		ExternalReference: "ref-1",
+		CheckoutRequestID: &checkoutID,
+		Status:            domain.StatusPending,
+	}
+
+	uc := NewMpesaUsecase(repo, nil)
+
+	payload := &domain.STKCallbackPayload{
+		Body: domain.STKCallbackBody{
+			StkCallback: domain.STKCallback{
+				CheckoutRequestID: "checkout-123",
+				ResultCode:        "GV50113",
+				ResultDesc:        "The receiver party information is invalid",
+			},
+		},
+	}
+
+	err := uc.ProcessSTKCallback(context.Background(), payload)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	tx := repo.transactions["ref-1"]
+	if tx.Status != domain.StatusFailed {
+		t.Errorf("expected status FAILED, got %s", tx.Status)
+	}
+
+	if tx.ResultCode != -1 {
+		t.Errorf("expected ResultCode to be -1 for non-numeric string error, got %d", tx.ResultCode)
+	}
+}

@@ -50,7 +50,7 @@ type STKCallbackMetadata struct {
 type STKCallback struct {
 	MerchantRequestID string               `json:"MerchantRequestID"`
 	CheckoutRequestID string               `json:"CheckoutRequestID"`
-	ResultCode        int                  `json:"ResultCode"`
+	ResultCode        interface{}          `json:"ResultCode"`
 	ResultDesc        string               `json:"ResultDesc"`
 	CallbackMetadata  *STKCallbackMetadata `json:"CallbackMetadata,omitempty"`
 }
