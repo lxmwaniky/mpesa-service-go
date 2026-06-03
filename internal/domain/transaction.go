@@ -90,5 +90,6 @@ type MpesaUsecase interface {
 	ValidateC2B(ctx context.Context, payload *C2BPayload) (*C2BValidationResponse, error)
 	ConfirmC2B(ctx context.Context, payload *C2BPayload) error
 	GetTransactionStatus(ctx context.Context, extRef string) (*TransactionStatusResponse, error)
+	RegisterC2BURLs(ctx context.Context, validationURL, confirmationURL string) error
 	Ping(ctx context.Context) error
 }

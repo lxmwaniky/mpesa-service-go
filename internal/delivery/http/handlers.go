@@ -15,6 +15,11 @@ type STKInitiateRequest struct {
 	Description       string  `json:"description"`
 }
 
+type C2BRegisterRequest struct {
+	ValidationURL   string `json:"validation_url"`
+	ConfirmationURL string `json:"confirmation_url"`
+}
+
 type Handler struct {
 	usecase domain.MpesaUsecase
 }
@@ -159,4 +164,31 @@ func (h *Handler) Healthz(w http.ResponseWriter, r *http.Request) {
 	}
 	slog.Debug("health check passed")
 	writeJSON(w, http.StatusOK, map[string]string{"status": "UP"})
+}
+
+func (h *Handler) RegisterC2BURLs(w http.ResponseWriter, r *http.Request) {
+	var req C2BRegisterRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		slog.Warn("invalid request payload for C2B register urls", "error", err)
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid request payload"})
+		return
+	}
+
+	if req.ValidationURL == "" || req.ConfirmationURL == "" {
+		slog.Warn("missing required fields for C2B register urls",
+			"validation_url", req.ValidationURL,
+			"confirmation_url", req.ConfirmationURL)
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Missing required fields"})
+		return
+	}
+
+	err := h.usecase.RegisterC2BURLs(r.Context(), req.ValidationURL, req.ConfirmationURL)
+	if err != nil {
+		slog.Error("c2b register urls failed", "err", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	slog.Info("C2B URLs registered successfully")
+	writeJSON(w, http.StatusOK, map[string]string{"message": "C2B URLs registered successfully"})
 }

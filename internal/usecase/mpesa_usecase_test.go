@@ -68,10 +68,12 @@ func (m *mockTransactionRepository) Ping(ctx context.Context) error {
 }
 
 type mockDarajaGateway struct {
-	resp      *daraja.STKPushResponse
-	queryResp *daraja.STKQueryResponse
-	err       error
-	queryErr  error
+	resp            *daraja.STKPushResponse
+	queryResp       *daraja.STKQueryResponse
+	err             error
+	queryErr        error
+	registerC2BResp *daraja.C2BRegisterResponse
+	registerC2BErr  error
 }
 
 func (m *mockDarajaGateway) SendSTKPush(ctx context.Context, phone string, amount float64, ref, desc string) (*daraja.STKPushResponse, error) {
@@ -86,6 +88,13 @@ func (m *mockDarajaGateway) QuerySTKPush(ctx context.Context, checkoutRequestID 
 		return nil, m.queryErr
 	}
 	return m.queryResp, nil
+}
+
+func (m *mockDarajaGateway) RegisterC2BURLs(ctx context.Context, validationURL, confirmationURL string) (*daraja.C2BRegisterResponse, error) {
+	if m.registerC2BErr != nil {
+		return nil, m.registerC2BErr
+	}
+	return m.registerC2BResp, nil
 }
 
 func TestInitiateSTKPush_Success(t *testing.T) {
@@ -506,3 +515,35 @@ func TestProcessSTKCallback_DynamicResultCode(t *testing.T) {
 		t.Errorf("expected ResultCode to be -1 for non-numeric string error, got %d", tx.ResultCode)
 	}
 }
+
+func TestRegisterC2BURLs_Success(t *testing.T) {
+	repo := newMockRepo()
+	gateway := &mockDarajaGateway{
+		registerC2BResp: &daraja.C2BRegisterResponse{
+			ResponseDescription: "Success",
+		},
+	}
+	uc := NewMpesaUsecase(repo, gateway)
+
+	err := uc.RegisterC2BURLs(context.Background(), "https://example.com/val", "https://example.com/conf")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+}
+
+func TestRegisterC2BURLs_Error(t *testing.T) {
+	repo := newMockRepo()
+	gateway := &mockDarajaGateway{
+		registerC2BErr: fmt.Errorf("daraja registration failed"),
+	}
+	uc := NewMpesaUsecase(repo, gateway)
+
+	err := uc.RegisterC2BURLs(context.Background(), "https://example.com/val", "https://example.com/conf")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "daraja registration failed") {
+		t.Errorf("expected error message to contain 'daraja registration failed', got: %v", err)
+	}
+}
+
