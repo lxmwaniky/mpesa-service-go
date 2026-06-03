@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 
 type DarajaGateway interface {
 	SendSTKPush(ctx context.Context, phone string, amount float64, ref, desc string) (*daraja.STKPushResponse, error)
+	QuerySTKPush(ctx context.Context, checkoutRequestID string) (*daraja.STKQueryResponse, error)
 }
 
 type mpesaUsecase struct {
@@ -52,7 +54,10 @@ func (u *mpesaUsecase) InitiateSTKPush(ctx context.Context, extRef, phone string
 		tx.Status = domain.StatusFailed
 		tx.ResultCode = -1
 		tx.ResultDesc = err.Error()
-		_ = u.repo.Create(ctx, tx)
+		if createErr := u.repo.Create(ctx, tx); createErr != nil {
+			slog.Error("failed to create failed transaction record", "error", createErr, "external_reference", extRef)
+			return nil, fmt.Errorf("stk push failed and failed to create transaction record: %v (%w)", err, createErr)
+		}
 		return nil, err
 	}
 
@@ -99,6 +104,7 @@ func (u *mpesaUsecase) ProcessSTKCallback(ctx context.Context, payload *domain.S
 		if errors.Is(err, domain.ErrAlreadyProcessed) {
 			return nil
 		}
+		slog.Error("failed to update transaction", "error", err, "checkout_request_id", checkoutID)
 		return err
 	}
 	return nil
@@ -145,6 +151,23 @@ func (u *mpesaUsecase) GetTransactionStatus(ctx context.Context, extRef string) 
 	}
 	if tx == nil {
 		return nil, nil
+	}
+
+	if tx.Status == domain.StatusPending && tx.TransactionType == "STK_PUSH" && tx.CheckoutRequestID != nil {
+		queryResp, err := u.gateway.QuerySTKPush(ctx, *tx.CheckoutRequestID)
+		if err == nil && queryResp.ResponseCode == "0" {
+			if queryResp.ResultCode == 0 {
+				tx.Status = domain.StatusSuccess
+			} else {
+				tx.Status = domain.StatusFailed
+			}
+			tx.ResultCode = queryResp.ResultCode
+			tx.ResultDesc = queryResp.ResultDesc
+			tx.UpdatedAt = time.Now()
+			_ = u.repo.Update(ctx, tx)
+		} else if err != nil {
+			slog.Warn("failed to query stk push status from daraja", "error", err, "checkout_request_id", *tx.CheckoutRequestID)
+		}
 	}
 
 	resp := &domain.TransactionStatusResponse{

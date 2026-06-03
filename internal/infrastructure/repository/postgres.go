@@ -147,7 +147,7 @@ func (r *postgresRepository) Update(ctx context.Context, tx *domain.Transaction)
 	query := `
 		UPDATE transactions
 		SET mpesa_receipt_number = $1, status = $2, result_code = $3, result_desc = $4, updated_at = $5
-		WHERE checkout_request_id = $6 AND status = 'PENDING'
+		WHERE checkout_request_id = $6 AND status = $7
 	`
 	result, err := r.db.ExecContext(
 		ctx,
@@ -158,6 +158,7 @@ func (r *postgresRepository) Update(ctx context.Context, tx *domain.Transaction)
 		tx.ResultDesc,
 		tx.UpdatedAt,
 		tx.CheckoutRequestID,
+		domain.StatusPending,
 	)
 	if err != nil {
 		return err

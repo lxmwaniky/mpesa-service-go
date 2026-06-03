@@ -67,9 +67,30 @@ func LoadConfig() (*Config, error) {
 		AppAPIKey:           getEnv("API_KEY", ""),
 	}
 
-	if cfg.MpesaConsumerKey == "" || cfg.MpesaConsumerSecret == "" {
-		if cfg.MpesaEnv == "production" {
-			return nil, fmt.Errorf("MPESA_CONSUMER_KEY and MPESA_CONSUMER_SECRET must be set in production")
+	if cfg.MpesaEnv == "production" {
+		if cfg.MpesaConsumerKey == "" {
+			return nil, fmt.Errorf("MPESA_CONSUMER_KEY must be set in production")
+		}
+		if cfg.MpesaConsumerSecret == "" {
+			return nil, fmt.Errorf("MPESA_CONSUMER_SECRET must be set in production")
+		}
+		if cfg.MpesaPasskey == "" {
+			return nil, fmt.Errorf("MPESA_PASSKEY must be set in production")
+		}
+		if cfg.MpesaShortcode == "" {
+			return nil, fmt.Errorf("MPESA_SHORTCODE must be set in production")
+		}
+		if cfg.MpesaCallbackURL == "" {
+			return nil, fmt.Errorf("MPESA_CALLBACK_URL must be set in production")
+		}
+		if cfg.AppAPIKey == "" {
+			return nil, fmt.Errorf("API_KEY must be set in production")
+		}
+	}
+
+	if cfg.MpesaCallbackURL != "" {
+		if !strings.HasPrefix(cfg.MpesaCallbackURL, "https://") {
+			return nil, fmt.Errorf("MPESA_CALLBACK_URL must use HTTPS protocol")
 		}
 	}
 
