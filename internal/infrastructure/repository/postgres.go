@@ -167,7 +167,11 @@ func (r *postgresRepository) Update(ctx context.Context, tx *domain.Transaction)
 		return err
 	}
 	if rows == 0 {
-		return errors.New("transaction already processed or not found")
+		return domain.ErrAlreadyProcessed
 	}
 	return nil
+}
+
+func (r *postgresRepository) Ping(ctx context.Context) error {
+	return r.db.PingContext(ctx)
 }
