@@ -8,15 +8,17 @@ import (
 )
 
 type Config struct {
-	Port                string
-	DatabaseURL         string
-	MpesaEnv            string
-	MpesaConsumerKey    string
-	MpesaConsumerSecret string
-	MpesaPasskey        string
-	MpesaShortcode      string
-	MpesaCallbackURL    string
-	AppAPIKey           string
+	Port                 string
+	DatabaseURL          string
+	MpesaEnv             string
+	MpesaConsumerKey     string
+	MpesaConsumerSecret  string
+	MpesaPasskey         string
+	MpesaShortcode       string
+	MpesaPartyB          string
+	MpesaTransactionType string
+	MpesaCallbackURL     string
+	AppAPIKey            string
 }
 
 func LoadEnv(filenames ...string) {
@@ -55,16 +57,23 @@ func LoadConfig() (*Config, error) {
 
 	dbURL := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", dbUser, dbPassword, dbHost, dbPort, dbName)
 
+	mpesaPartyB := getEnv("MPESA_PARTY_B", "")
+	if mpesaPartyB == "" {
+		mpesaPartyB = getEnv("MPESA_SHORTCODE", "")
+	}
+
 	cfg := &Config{
-		Port:                getEnv("PORT", "8080"),
-		DatabaseURL:         getEnv("DATABASE_URL", dbURL),
-		MpesaEnv:            getEnv("MPESA_ENV", "sandbox"),
-		MpesaConsumerKey:    getEnv("MPESA_CONSUMER_KEY", ""),
-		MpesaConsumerSecret: getEnv("MPESA_CONSUMER_SECRET", ""),
-		MpesaPasskey:        getEnv("MPESA_PASSKEY", ""),
-		MpesaShortcode:      getEnv("MPESA_SHORTCODE", ""),
-		MpesaCallbackURL:    getEnv("MPESA_CALLBACK_URL", ""),
-		AppAPIKey:           getEnv("API_KEY", ""),
+		Port:                 getEnv("PORT", "8080"),
+		DatabaseURL:          getEnv("DATABASE_URL", dbURL),
+		MpesaEnv:             getEnv("MPESA_ENV", "sandbox"),
+		MpesaConsumerKey:     getEnv("MPESA_CONSUMER_KEY", ""),
+		MpesaConsumerSecret:  getEnv("MPESA_CONSUMER_SECRET", ""),
+		MpesaPasskey:         getEnv("MPESA_PASSKEY", ""),
+		MpesaShortcode:       getEnv("MPESA_SHORTCODE", ""),
+		MpesaPartyB:          mpesaPartyB,
+		MpesaTransactionType: getEnv("MPESA_TRANSACTION_TYPE", "CustomerPayBillOnline"),
+		MpesaCallbackURL:     getEnv("MPESA_CALLBACK_URL", ""),
+		AppAPIKey:            getEnv("API_KEY", ""),
 	}
 
 	if cfg.MpesaEnv == "production" {
