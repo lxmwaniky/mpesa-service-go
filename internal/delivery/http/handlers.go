@@ -18,6 +18,7 @@ type STKInitiateRequest struct {
 type C2BRegisterRequest struct {
 	ValidationURL   string `json:"validation_url"`
 	ConfirmationURL string `json:"confirmation_url"`
+	APIVersion      string `json:"api_version"`
 }
 
 type Handler struct {
@@ -182,7 +183,7 @@ func (h *Handler) RegisterC2BURLs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.usecase.RegisterC2BURLs(r.Context(), req.ValidationURL, req.ConfirmationURL)
+	err := h.usecase.RegisterC2BURLs(r.Context(), req.ValidationURL, req.ConfirmationURL, req.APIVersion)
 	if err != nil {
 		slog.Error("c2b register urls failed", "err", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})

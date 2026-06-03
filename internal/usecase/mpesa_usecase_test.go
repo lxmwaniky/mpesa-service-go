@@ -90,7 +90,7 @@ func (m *mockDarajaGateway) QuerySTKPush(ctx context.Context, checkoutRequestID 
 	return m.queryResp, nil
 }
 
-func (m *mockDarajaGateway) RegisterC2BURLs(ctx context.Context, validationURL, confirmationURL string) (*daraja.C2BRegisterResponse, error) {
+func (m *mockDarajaGateway) RegisterC2BURLs(ctx context.Context, validationURL, confirmationURL string, apiVersion string) (*daraja.C2BRegisterResponse, error) {
 	if m.registerC2BErr != nil {
 		return nil, m.registerC2BErr
 	}
@@ -525,7 +525,7 @@ func TestRegisterC2BURLs_Success(t *testing.T) {
 	}
 	uc := NewMpesaUsecase(repo, gateway)
 
-	err := uc.RegisterC2BURLs(context.Background(), "https://example.com/val", "https://example.com/conf")
+	err := uc.RegisterC2BURLs(context.Background(), "https://example.com/val", "https://example.com/conf", "v2")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -538,7 +538,7 @@ func TestRegisterC2BURLs_Error(t *testing.T) {
 	}
 	uc := NewMpesaUsecase(repo, gateway)
 
-	err := uc.RegisterC2BURLs(context.Background(), "https://example.com/val", "https://example.com/conf")
+	err := uc.RegisterC2BURLs(context.Background(), "https://example.com/val", "https://example.com/conf", "v1")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}

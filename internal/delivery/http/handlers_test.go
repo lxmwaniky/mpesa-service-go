@@ -18,7 +18,7 @@ type mockMpesaUsecase struct {
 	validateFunc        func(ctx context.Context, payload *domain.C2BPayload) (*domain.C2BValidationResponse, error)
 	confirmFunc         func(ctx context.Context, payload *domain.C2BPayload) error
 	statusFunc          func(ctx context.Context, extRef string) (*domain.TransactionStatusResponse, error)
-	registerC2BURLsFunc func(ctx context.Context, validationURL, confirmationURL string) error
+	registerC2BURLsFunc func(ctx context.Context, validationURL, confirmationURL string, apiVersion string) error
 	pingFunc            func(ctx context.Context) error
 }
 
@@ -57,9 +57,9 @@ func (m *mockMpesaUsecase) GetTransactionStatus(ctx context.Context, extRef stri
 	return nil, nil
 }
 
-func (m *mockMpesaUsecase) RegisterC2BURLs(ctx context.Context, validationURL, confirmationURL string) error {
+func (m *mockMpesaUsecase) RegisterC2BURLs(ctx context.Context, validationURL, confirmationURL string, apiVersion string) error {
 	if m.registerC2BURLsFunc != nil {
-		return m.registerC2BURLsFunc(ctx, validationURL, confirmationURL)
+		return m.registerC2BURLsFunc(ctx, validationURL, confirmationURL, apiVersion)
 	}
 	return nil
 }
@@ -221,7 +221,10 @@ func TestHandler_Healthz_Failure(t *testing.T) {
 
 func TestHandler_RegisterC2BURLs_Success(t *testing.T) {
 	mockUC := &mockMpesaUsecase{
-		registerC2BURLsFunc: func(ctx context.Context, validationURL, confirmationURL string) error {
+		registerC2BURLsFunc: func(ctx context.Context, validationURL, confirmationURL string, apiVersion string) error {
+			if apiVersion != "v2" {
+				return errors.New("expected apiVersion 'v2'")
+			}
 			return nil
 		},
 	}
@@ -231,6 +234,7 @@ func TestHandler_RegisterC2BURLs_Success(t *testing.T) {
 	payload := C2BRegisterRequest{
 		ValidationURL:   "https://example.com/val",
 		ConfirmationURL: "https://example.com/conf",
+		APIVersion:      "v2",
 	}
 	body, _ := json.Marshal(payload)
 
@@ -283,7 +287,7 @@ func TestHandler_RegisterC2BURLs_MissingFields(t *testing.T) {
 
 func TestHandler_RegisterC2BURLs_Failure(t *testing.T) {
 	mockUC := &mockMpesaUsecase{
-		registerC2BURLsFunc: func(ctx context.Context, validationURL, confirmationURL string) error {
+		registerC2BURLsFunc: func(ctx context.Context, validationURL, confirmationURL string, apiVersion string) error {
 			return errors.New("registration error")
 		},
 	}

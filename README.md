@@ -161,7 +161,28 @@ Checks the status of an ongoing transaction. Translates cryptic M-Pesa error cod
     }
     ```
 
-### 3. Health Check (Public)
+### 3. Register C2B URLs (Private)
+Registers the validation and confirmation webhooks dynamically with Safaricom G2 platform.
+
+*   **Endpoint**: `POST /api/v1/mpesa/c2b/register`
+*   **Headers**:
+    *   `X-API-Key`: `your_pre_shared_secret_api_key`
+    *   `Content-Type`: `application/json`
+*   **Request Body**:
+    ```json
+    {
+      "validation_url": "https://your-domain.com/api/v1/mpesa/callbacks/c2b/validation",
+      "confirmation_url": "https://your-domain.com/api/v1/mpesa/callbacks/c2b/confirmation"
+    }
+    ```
+*   **Response (`200 OK`)**:
+    ```json
+    {
+      "message": "C2B URLs registered successfully"
+    }
+    ```
+
+### 4. Health Check (Public)
 Public endpoint for SRE observability, readiness, and liveness probes. Checks database ping connectivity under the hood.
 
 *   **Endpoint**: `GET /healthz`

@@ -15,7 +15,7 @@ import (
 type DarajaGateway interface {
 	SendSTKPush(ctx context.Context, phone string, amount float64, ref, desc string) (*daraja.STKPushResponse, error)
 	QuerySTKPush(ctx context.Context, checkoutRequestID string) (*daraja.STKQueryResponse, error)
-	RegisterC2BURLs(ctx context.Context, validationURL, confirmationURL string) (*daraja.C2BRegisterResponse, error)
+	RegisterC2BURLs(ctx context.Context, validationURL, confirmationURL string, apiVersion string) (*daraja.C2BRegisterResponse, error)
 }
 
 type mpesaUsecase struct {
@@ -261,8 +261,8 @@ func (u *mpesaUsecase) Ping(ctx context.Context) error {
 	return u.repo.Ping(ctx)
 }
 
-func (u *mpesaUsecase) RegisterC2BURLs(ctx context.Context, validationURL, confirmationURL string) error {
-	_, err := u.gateway.RegisterC2BURLs(ctx, validationURL, confirmationURL)
+func (u *mpesaUsecase) RegisterC2BURLs(ctx context.Context, validationURL, confirmationURL string, apiVersion string) error {
+	_, err := u.gateway.RegisterC2BURLs(ctx, validationURL, confirmationURL, apiVersion)
 	return err
 }
 
