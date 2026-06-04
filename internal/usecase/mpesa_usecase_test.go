@@ -63,6 +63,20 @@ func (m *mockTransactionRepository) Update(ctx context.Context, tx *domain.Trans
 	return nil
 }
 
+func (m *mockTransactionRepository) UpdateReceipt(ctx context.Context, checkoutRequestID string, receiptNumber string) error {
+	if m.updateErr != nil {
+		return m.updateErr
+	}
+	for _, tx := range m.transactions {
+		if tx.CheckoutRequestID != nil && *tx.CheckoutRequestID == checkoutRequestID {
+			tx.MpesaReceiptNumber = &receiptNumber
+			tx.UpdatedAt = time.Now()
+			break
+		}
+	}
+	return nil
+}
+
 func (m *mockTransactionRepository) Ping(ctx context.Context) error {
 	return m.pingErr
 }
@@ -203,6 +217,44 @@ func TestProcessSTKCallback_AlreadyProcessed(t *testing.T) {
 	err := uc.ProcessSTKCallback(context.Background(), payload)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestProcessSTKCallback_FallbackReceiptRecovery(t *testing.T) {
+	repo := newMockRepo()
+	checkoutID := "checkout-123"
+	repo.transactions["ref-1"] = &domain.Transaction{
+		ExternalReference: "ref-1",
+		CheckoutRequestID: &checkoutID,
+		Status:            domain.StatusSuccess,
+		MpesaReceiptNumber: nil,
+	}
+
+	uc := NewMpesaUsecase(repo, nil)
+
+	payload := &domain.STKCallbackPayload{
+		Body: domain.STKCallbackBody{
+			StkCallback: domain.STKCallback{
+				CheckoutRequestID: "checkout-123",
+				ResultCode:        0,
+				ResultDesc:        "Success",
+				CallbackMetadata: &domain.STKCallbackMetadata{
+					Item: []domain.STKCallbackMetadataItem{
+						{Name: "MpesaReceiptNumber", Value: "RECOVERY999"},
+					},
+				},
+			},
+		},
+	}
+
+	err := uc.ProcessSTKCallback(context.Background(), payload)
+	if err != nil {
+		t.Fatalf("unexpected error during fallback receipt recovery: %v", err)
+	}
+
+	tx := repo.transactions["ref-1"]
+	if tx.MpesaReceiptNumber == nil || *tx.MpesaReceiptNumber != "RECOVERY999" {
+		t.Errorf("expected receipt recovered 'RECOVERY999', got %v", tx.MpesaReceiptNumber)
 	}
 }
 

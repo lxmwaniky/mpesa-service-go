@@ -128,7 +128,7 @@ func (c *Client) SendSTKPush(ctx context.Context, phoneNumber string, amount flo
 		Password:          password,
 		Timestamp:         timestamp,
 		TransactionType:   c.cfg.MpesaTransactionType,
-		Amount:            fmt.Sprintf("%.0f", amount),
+		Amount:            fmt.Sprintf("%.2f", amount),
 		PartyA:            formattedPhone,
 		PartyB:            c.cfg.MpesaPartyB,
 		PhoneNumber:       formattedPhone,
