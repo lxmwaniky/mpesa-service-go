@@ -83,6 +83,13 @@ func (u *mpesaUsecase) ProcessSTKCallback(ctx context.Context, payload *domain.S
 	}
 
 	if tx.Status != domain.StatusPending {
+		if tx.Status == domain.StatusSuccess && tx.MpesaReceiptNumber == nil && parseResultCode(payload.Body.StkCallback.ResultCode) == 0 && payload.Body.StkCallback.CallbackMetadata != nil {
+			receipt, _ := extractSTKMetadata(payload.Body.StkCallback.CallbackMetadata)
+			if receipt != "" {
+				slog.Info("recovering receipt number from callback webhook for transaction completed via polling", "checkout_request_id", checkoutID)
+				return u.repo.UpdateReceipt(ctx, checkoutID, receipt)
+			}
+		}
 		return nil
 	}
 
@@ -240,6 +247,9 @@ func translateResultCode(status domain.TransactionStatus, code int, rawDesc stri
 }
 
 func extractSTKMetadata(metadata *domain.STKCallbackMetadata) (string, float64) {
+	if metadata == nil {
+		return "", 0
+	}
 	var receipt string
 	var amount float64
 	for _, item := range metadata.Item {

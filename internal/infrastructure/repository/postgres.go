@@ -173,6 +173,16 @@ func (r *postgresRepository) Update(ctx context.Context, tx *domain.Transaction)
 	return nil
 }
 
+func (r *postgresRepository) UpdateReceipt(ctx context.Context, checkoutRequestID string, receiptNumber string) error {
+	query := `
+		UPDATE transactions
+		SET mpesa_receipt_number = $1, updated_at = $2
+		WHERE checkout_request_id = $3 AND mpesa_receipt_number IS NULL
+	`
+	_, err := r.db.ExecContext(ctx, query, receiptNumber, time.Now(), checkoutRequestID)
+	return err
+}
+
 func (r *postgresRepository) Ping(ctx context.Context) error {
 	return r.db.PingContext(ctx)
 }

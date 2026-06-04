@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -66,9 +67,21 @@ func (l *ipLimiter) cleanup() {
 
 func RateLimit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip, _, err := net.SplitHostPort(r.RemoteAddr)
-		if err != nil {
-			ip = r.RemoteAddr
+		var ip string
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			if parts := strings.Split(xff, ","); len(parts) > 0 {
+				ip = strings.TrimSpace(parts[0])
+			}
+		}
+		if ip == "" {
+			ip = r.Header.Get("X-Real-IP")
+		}
+		if ip == "" {
+			var err error
+			ip, _, err = net.SplitHostPort(r.RemoteAddr)
+			if err != nil {
+				ip = r.RemoteAddr
+			}
 		}
 
 		limiter := limiterStore.getLimiter(ip)
