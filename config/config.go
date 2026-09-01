@@ -2,6 +2,7 @@ package config
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -21,14 +22,17 @@ type Config struct {
 	AppAPIKey            string
 }
 
-func LoadEnv(filenames ...string) {
+func LoadEnv(filenames ...string) error {
 	filename := ".env"
 	if len(filenames) > 0 {
 		filename = filenames[0]
 	}
 	file, err := os.Open(filename)
 	if err != nil {
-		return
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("failed to open env file: %w", err)
 	}
 	defer file.Close()
 
@@ -42,10 +46,12 @@ func LoadEnv(filenames ...string) {
 		if len(parts) != 2 {
 			continue
 		}
-		key := strings.TrimSpace(parts[0])
-		val := strings.TrimSpace(parts[1])
-		os.Setenv(key, val)
+		_ = os.Setenv(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
 	}
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("failed to scan env file: %w", err)
+	}
+	return nil
 }
 
 func LoadConfig() (*Config, error) {
