@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/lxmwaniky/mpesa-service-go/config"
 	"github.com/lxmwaniky/mpesa-service-go/internal/domain"
 )
 
@@ -219,6 +220,55 @@ func TestHandler_Healthz_Failure(t *testing.T) {
 	}
 }
 
+func TestRouter_DocsIsPublic(t *testing.T) {
+	router := NewRouter(&mockMpesaUsecase{}, &config.Config{AppAPIKey: "secret"})
+
+	req := httptest.NewRequest("GET", "/docs", nil)
+	rr := httptest.NewRecorder()
+
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, rr.Code)
+	}
+
+	var resp map[string]interface{}
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode docs response: %v", err)
+	}
+	if resp["service"] != "mpesa-service-go" {
+		t.Errorf("expected service mpesa-service-go, got %v", resp["service"])
+	}
+}
+
+func TestRouter_OpenAPIIsPublic(t *testing.T) {
+	router := NewRouter(&mockMpesaUsecase{}, &config.Config{AppAPIKey: "secret"})
+
+	req := httptest.NewRequest("GET", "/openapi.json", nil)
+	rr := httptest.NewRecorder()
+
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, rr.Code)
+	}
+
+	var resp map[string]interface{}
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode openapi response: %v", err)
+	}
+	if resp["openapi"] != "3.1.0" {
+		t.Errorf("expected openapi 3.1.0, got %v", resp["openapi"])
+	}
+	paths, ok := resp["paths"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected openapi paths object")
+	}
+	if _, ok := paths["/api/v1/mpesa/stk-push"]; !ok {
+		t.Fatal("expected stk-push path in openapi document")
+	}
+}
+
 func TestHandler_RegisterC2BURLs_Success(t *testing.T) {
 	mockUC := &mockMpesaUsecase{
 		registerC2BURLsFunc: func(ctx context.Context, validationURL, confirmationURL string, apiVersion string) error {
@@ -309,4 +359,3 @@ func TestHandler_RegisterC2BURLs_Failure(t *testing.T) {
 		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, rr.Code)
 	}
 }
-

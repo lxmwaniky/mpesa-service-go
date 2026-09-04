@@ -16,6 +16,8 @@ func NewRouter(usecase domain.MpesaUsecase, cfg *config.Config) http.Handler {
 	getStatusHandler := http.HandlerFunc(handler.GetStatus)
 	registerC2BHandler := http.HandlerFunc(handler.RegisterC2BURLs)
 
+	mux.HandleFunc("GET /docs", handler.Docs)
+	mux.HandleFunc("GET /openapi.json", handler.OpenAPI)
 	mux.Handle("POST /api/v1/mpesa/stk-push", authMiddleware(stkPushHandler))
 	mux.Handle("GET /api/v1/mpesa/status/{extRef}", authMiddleware(getStatusHandler))
 	mux.Handle("POST /api/v1/mpesa/c2b/register", authMiddleware(registerC2BHandler))
