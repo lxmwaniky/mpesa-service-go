@@ -182,7 +182,7 @@ func TestHandler_GetStatus_Success(t *testing.T) {
 	}
 }
 
-func TestHandler_Healthz_Success(t *testing.T) {
+func TestHandler_health_Success(t *testing.T) {
 	mockUC := &mockMpesaUsecase{
 		pingFunc: func(ctx context.Context) error {
 			return nil
@@ -191,17 +191,17 @@ func TestHandler_Healthz_Success(t *testing.T) {
 
 	handler := NewHandler(mockUC)
 
-	req := httptest.NewRequest("GET", "/healthz", nil)
+	req := httptest.NewRequest("GET", "/health", nil)
 	rr := httptest.NewRecorder()
 
-	handler.Healthz(rr, req)
+	handler.health(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected status %d, got %d", http.StatusOK, rr.Code)
 	}
 }
 
-func TestHandler_Healthz_Failure(t *testing.T) {
+func TestHandler_health_Failure(t *testing.T) {
 	mockUC := &mockMpesaUsecase{
 		pingFunc: func(ctx context.Context) error {
 			return errors.New("db error")
@@ -210,10 +210,10 @@ func TestHandler_Healthz_Failure(t *testing.T) {
 
 	handler := NewHandler(mockUC)
 
-	req := httptest.NewRequest("GET", "/healthz", nil)
+	req := httptest.NewRequest("GET", "/health", nil)
 	rr := httptest.NewRecorder()
 
-	handler.Healthz(rr, req)
+	handler.health(rr, req)
 
 	if rr.Code != http.StatusServiceUnavailable {
 		t.Errorf("expected status %d, got %d", http.StatusServiceUnavailable, rr.Code)

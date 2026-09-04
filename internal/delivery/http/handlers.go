@@ -157,7 +157,7 @@ func (h *Handler) GetStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, status)
 }
 
-func (h *Handler) Healthz(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 	if err := h.usecase.Ping(r.Context()); err != nil {
 		slog.Error("health check failed", "error", err)
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "DOWN", "error": err.Error()})

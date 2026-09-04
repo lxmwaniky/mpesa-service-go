@@ -187,7 +187,7 @@ Registers the C2B validation and confirmation webhook endpoints with Safaricom d
 
 Used for Kubernetes / Cloud Run liveness, readiness, and uptime checks. Performs a lightweight database ping check under the hood.
 
-* **Endpoint**: `GET /healthz`
+* **Endpoint**: `GET /health`
 * **Authentication**: None
 
 #### Responses

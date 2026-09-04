@@ -185,7 +185,7 @@ Registers the validation and confirmation webhooks dynamically with Safaricom G2
 ### 4. Health Check (Public)
 Public endpoint for SRE observability, readiness, and liveness probes. Checks database ping connectivity under the hood.
 
-*   **Endpoint**: `GET /healthz`
+*   **Endpoint**: `GET /health`
 *   **Headers**: None
 *   **Response (`200 OK`)**:
     ```json
@@ -236,4 +236,4 @@ Public endpoint for SRE observability, readiness, and liveness probes. Checks da
 *   **Idempotent Callback Handlers**: If a duplicate callback retry hits the server, the system detects that the transaction state is no longer `PENDING` and returns an immediate `200 OK` response to silence Safaricom’s retry queue, protecting application throughput.
 *   **Active Memory Protection**: Built-in rate limiter background cleanup routines continuously sweep and delete inactive keys from memory, securing the service from OOM and brute-force vulnerabilities.
 *   **Structured Logging**: All logs are emitted in structured JSON format with consistent fields (`timestamp`, `level`, `message`, `transaction_id`, etc.) to facilitate seamless integration with log aggregation platforms and enable powerful querying and alerting capabilities.
-*   **Health Checks**: The `/healthz` endpoint performs a lightweight database ping to ensure the service is not only running but also has connectivity to its critical dependencies, providing accurate signals for Kubernetes liveness and readiness probes.
+*   **Health Checks**: The `/health` endpoint performs a lightweight database ping to ensure the service is not only running but also has connectivity to its critical dependencies, providing accurate signals for Kubernetes liveness and readiness probes.

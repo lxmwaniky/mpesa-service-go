@@ -12,7 +12,7 @@ func (h *Handler) Docs(w http.ResponseWriter, r *http.Request) {
 		},
 		"links": map[string]string{
 			"openapi": "/openapi.json",
-			"health":  "/healthz",
+			"health":  "/health",
 		},
 		"endpoints": []map[string]interface{}{
 			{
@@ -53,7 +53,7 @@ func (h *Handler) Docs(w http.ResponseWriter, r *http.Request) {
 			},
 			{
 				"method":        "GET",
-				"path":          "/healthz",
+				"path":          "/health",
 				"auth_required": false,
 				"description":   "Check database connectivity.",
 			},
@@ -103,7 +103,7 @@ func openAPIDocument() map[string]interface{} {
 			},
 		},
 		"paths": map[string]interface{}{
-			"/healthz": map[string]interface{}{
+			"/health": map[string]interface{}{
 				"get": map[string]interface{}{
 					"summary": "Health check",
 					"responses": map[string]interface{}{

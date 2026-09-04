@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Added
 - **Dynamic C2B URL Registration**: Added `POST /api/v1/mpesa/c2b/register` secured by API Key authentication to enable dynamic, reusable registration of validation and confirmation URLs with Safaricom.
-- **SRE Health Check Endpoint**: Added a GET `/healthz` route checking system liveness and database ping connectivity without requiring authentication.
+- **SRE Health Check Endpoint**: Added a GET `/health` route checking system liveness and database ping connectivity without requiring authentication.
 - **Unit and Integration Tests**: Designed comprehensive test suites under `internal/delivery/http/middleware_test.go`, `internal/delivery/http/handlers_test.go`, and `internal/usecase/mpesa_usecase_test.go` to cover HTTP routers, handler bindings, rate limiters, token sweeps, duplicate checks, and transactions.
 - **ErrAlreadyProcessed Sentinel Error**: Added `ErrAlreadyProcessed` to clean repository and usecase layers to cleanly manage concurrent webhook retries.
 
