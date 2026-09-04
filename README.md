@@ -123,7 +123,7 @@ Triggers a payment prompt to a user's phone.
       "external_reference": "invoice-1024",
       "merchant_request_id": "4413-468c-b949-a0f46ce2524393104",
       "checkout_request_id": "ws_CO_03062026074701134701343452",
-      "phone_number": "254701343452",
+      "phone_number": "2547XXXXXXXX",
       "amount": 1,
       "status": "PENDING",
       "result_code": 0,
