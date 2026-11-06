@@ -111,7 +111,7 @@ Triggers a payment prompt to a user's phone.
     ```json
     {
       "external_reference": "invoice-1024",
-      "phone_number": "254701343452",
+      "phone_number": "254798765432",
       "amount": 1.00,
       "description": "Payment for invoice 1024"
     }
